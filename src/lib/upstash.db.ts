@@ -403,12 +403,16 @@ export class UpstashRedisStorage implements IStorage {
     const val = await withRetry(() =>
       this.client.get(this.globalValueKey(key))
     );
-    return val ? ensureString(val) : null;
+    // Upstash 会自动反序列化 JSON，如果值是对象，需要重新序列化为字符串
+    if (val === null) return null;
+    if (typeof val === 'string') return val;
+    // 如果是对象（Upstash 自动反序列化的结果），重新序列化
+    return JSON.stringify(val);
   }
 
   async setGlobalValue(key: string, value: string): Promise<void> {
     await withRetry(() =>
-      this.client.set(this.globalValueKey(key), ensureString(value))
+      this.client.set(this.globalValueKey(key), value)
     );
   }
 

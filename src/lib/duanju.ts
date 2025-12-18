@@ -25,7 +25,7 @@ export async function getDuanjuSources(): Promise<DuanjuSource[]> {
     const cachedData = await db.getGlobalValue('duanju');
 
     if (cachedData !== null) {
-      // 有缓存，直接返回
+      // 有缓存，直接返回（getGlobalValue 已经处理了序列化问题）
       return cachedData ? JSON.parse(cachedData) : [];
     }
 
