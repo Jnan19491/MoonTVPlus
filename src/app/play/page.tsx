@@ -1140,7 +1140,7 @@ function PlayPageClient() {
 
   // 保存优选时的测速结果，避免EpisodeSelector重复测速
   const [precomputedVideoInfo, setPrecomputedVideoInfo] = useState<
-    Map<string, { quality: string; loadSpeed: string; pingTime: number }>
+    Map<string, { quality: string; loadSpeed: string; pingTime: number; bitrate: string }>
   >(new Map());
 
   // 折叠状态（仅在 lg 及以上屏幕有效）
@@ -1238,7 +1238,7 @@ function PlayPageClient() {
     const batchSize = Math.ceil(sources.length / 2);
     const allResults: Array<{
       source: SearchResult;
-      testResult: { quality: string; loadSpeed: string; pingTime: number };
+      testResult: { quality: string; loadSpeed: string; pingTime: number; bitrate: string };
     } | null> = [];
 
     for (let start = 0; start < sources.length; start += batchSize) {
@@ -1278,6 +1278,7 @@ function PlayPageClient() {
         quality: string;
         loadSpeed: string;
         pingTime: number;
+        bitrate: string;
         hasError?: boolean;
       }
     >();
@@ -1294,7 +1295,7 @@ function PlayPageClient() {
     // 过滤出成功的结果用于优选计算
     const successfulResults = allResults.filter(Boolean) as Array<{
       source: SearchResult;
-      testResult: { quality: string; loadSpeed: string; pingTime: number };
+      testResult: { quality: string; loadSpeed: string; pingTime: number; bitrate: string };
     }>;
 
     setPrecomputedVideoInfo(newVideoInfoMap);

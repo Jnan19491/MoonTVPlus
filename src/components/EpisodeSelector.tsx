@@ -21,6 +21,7 @@ interface VideoInfo {
   quality: string;
   loadSpeed: string;
   pingTime: number;
+  bitrate: string; // 视频码率
   hasError?: boolean; // 添加错误状态标识
 }
 
@@ -898,6 +899,11 @@ const EpisodeSelector: React.FC<EpisodeSelectorProps> = ({
                                         <div className='text-orange-600 dark:text-orange-400 font-medium text-xs'>
                                           {videoInfo.pingTime}ms
                                         </div>
+                                        {videoInfo.bitrate && videoInfo.bitrate !== '未知' && (
+                                          <div className='text-purple-600 dark:text-purple-400 font-medium text-xs'>
+                                            {videoInfo.bitrate}
+                                          </div>
+                                        )}
                                       </div>
                                     );
                                   } else {
