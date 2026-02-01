@@ -79,15 +79,54 @@ async function executeMethod(
   let url = config.url;
   const params: Record<string, string> = {};
 
+  // 先将 variables 中的值转换为可执行的变量
+  const evalContext: Record<string, any> = {};
+  for (const [key, value] of Object.entries(variables)) {
+    // 尝试将字符串转换为数字（如果可能）
+    const numValue = Number(value);
+    evalContext[key] = isNaN(numValue) ? value : numValue;
+  }
+
+  // 递归处理对象中的模板变量
+  function processTemplateValue(value: any): any {
+    if (typeof value === 'string') {
+      // 处理包含模板变量的表达式
+      const expressionRegex = /\{\{(.+?)\}\}/g;
+      return value.replace(expressionRegex, (match, expression) => {
+        try {
+          // 创建一个函数来执行表达式，传入所有变量作为参数
+          // eslint-disable-next-line no-new-func
+          const func = new Function(...Object.keys(evalContext), `return ${expression}`);
+          const result = func(...Object.values(evalContext));
+          return String(result);
+        } catch (err) {
+          console.error(`[executeMethod] 执行表达式失败: ${expression}`, err);
+          return '0'; // 默认值
+        }
+      });
+    } else if (Array.isArray(value)) {
+      return value.map(item => processTemplateValue(item));
+    } else if (typeof value === 'object' && value !== null) {
+      const result: any = {};
+      for (const [k, v] of Object.entries(value)) {
+        result[k] = processTemplateValue(v);
+      }
+      return result;
+    }
+    return value;
+  }
+
+  // 处理 URL 参数
   if (config.params) {
     for (const [key, value] of Object.entries(config.params)) {
-      let processedValue = String(value);
-      // 替换所有模板变量
-      for (const [varName, varValue] of Object.entries(variables)) {
-        processedValue = processedValue.replace(`{{${varName}}}`, varValue);
-      }
-      params[key] = processedValue;
+      params[key] = processTemplateValue(value);
     }
+  }
+
+  // 处理 POST body
+  let processedBody = config.body;
+  if (config.body) {
+    processedBody = processTemplateValue(config.body);
   }
 
   // 3. 构建完整 URL
@@ -105,8 +144,8 @@ async function executeMethod(
     headers: config.headers || {},
   };
 
-  if (config.method === 'POST' && config.body) {
-    requestOptions.body = JSON.stringify(config.body);
+  if (config.method === 'POST' && processedBody) {
+    requestOptions.body = JSON.stringify(processedBody);
     requestOptions.headers = {
       ...requestOptions.headers,
       'Content-Type': 'application/json',
@@ -123,8 +162,29 @@ async function executeMethod(
       const transformFn = eval(`(${config.transform})`);
       data = transformFn(data);
     } catch (err) {
-      console.error('Transform 函数执行失败:', err);
+      console.error('[executeMethod] Transform 函数执行失败:', err);
     }
+  }
+
+  // 6. 处理酷我音乐的图片 URL（转换为代理 URL）
+  if (platform === 'kuwo') {
+    const processKuwoImages = (obj: any): any => {
+      if (typeof obj === 'string' && obj.startsWith('http://') && obj.includes('kwcdn.kuwo.cn')) {
+        // 将 HTTP 图片 URL 转换为代理 URL
+        return `/api/music/proxy?url=${encodeURIComponent(obj)}`;
+      } else if (Array.isArray(obj)) {
+        return obj.map(item => processKuwoImages(item));
+      } else if (typeof obj === 'object' && obj !== null) {
+        const result: any = {};
+        for (const [key, value] of Object.entries(obj)) {
+          result[key] = processKuwoImages(value);
+        }
+        return result;
+      }
+      return obj;
+    };
+
+    data = processKuwoImages(data);
   }
 
   return data;
@@ -231,7 +291,7 @@ export async function GET(request: NextRequest) {
         // 搜索歌曲
         const platform = searchParams.get('platform');
         const keyword = searchParams.get('keyword');
-        const page = searchParams.get('page') || '0';
+        const page = searchParams.get('page') || '1';
         const pageSize = searchParams.get('pageSize') || '20';
 
         if (!platform || !keyword) {
@@ -248,11 +308,15 @@ export async function GET(request: NextRequest) {
           return NextResponse.json(cached.data);
         }
 
+        // 注意：不同平台可能使用不同的变量名
+        // 统一传递 keyword, page, pageSize, limit (limit = pageSize)
         const data = await executeMethod(baseUrl, platform, 'search', {
           keyword,
           page,
           pageSize,
+          limit: pageSize, // 有些平台使用 limit 而不是 pageSize
         });
+
         serverCache.proxyRequests.set(cacheKey, { data, timestamp: Date.now() });
 
         return NextResponse.json(data);

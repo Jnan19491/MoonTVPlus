@@ -15,6 +15,7 @@ interface Song {
   artist: string;
   album?: string;
   pic?: string;
+  platform?: 'netease' | 'qq' | 'kuwo'; // 添加平台信息
 }
 
 interface PlayRecord {
@@ -70,6 +71,20 @@ export default function MusicPage() {
   const lastSaveTimeRef = useRef<number>(0);
   const restoredTimeRef = useRef<number>(0);
 
+  // 工具函数：处理图片 URL（在 HTTPS 环境下代理 HTTP 图片）
+  const processImageUrl = (url: string | undefined, platform: string): string | undefined => {
+    if (!url) return url;
+
+    const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
+
+    // 只对酷我音乐的 HTTP 图片在 HTTPS 环境下进行代理
+    if (platform === 'kuwo' && isHttps && url.startsWith('http://')) {
+      return `/api/music/proxy?url=${encodeURIComponent(url)}`;
+    }
+
+    return url;
+  };
+
   // 保存播放状态到 localStorage
   const savePlayState = () => {
     if (!currentSong) return;
@@ -96,7 +111,7 @@ export default function MusicPage() {
   };
 
   // 从 localStorage 恢复播放状态
-  const restorePlayState = () => {
+  const restorePlayState = async () => {
     try {
       const saved = localStorage.getItem('musicPlayState');
       if (!saved) return;
@@ -112,7 +127,6 @@ export default function MusicPage() {
       setQuality(playState.quality || '320k');
       setPlayMode(playState.playMode || 'loop');
       setVolume(playState.volume || 100);
-      setCurrentSongUrl(playState.currentSongUrl || '');
       setLyrics(playState.lyrics || []);
       setPlayRecords(playState.playRecords || []);
       setPlaylist(playState.playlist || []); // 恢复播放列表
@@ -121,29 +135,65 @@ export default function MusicPage() {
       // 保存需要恢复的时间点
       restoredTimeRef.current = playState.currentTime || 0;
 
-      if (playState.currentSong && playState.currentSongUrl) {
+      if (playState.currentSong) {
         setShowPlayer(true);
-        // 延迟设置音频源，等待 audio 元素加载
-        setTimeout(() => {
-          if (audioRef.current && playState.currentSongUrl) {
-            audioRef.current.src = playState.currentSongUrl;
 
-            // 监听多个事件以确保进度恢复
-            const restoreTime = () => {
-              if (audioRef.current && restoredTimeRef.current > 0) {
-                audioRef.current.currentTime = restoredTimeRef.current;
-                restoredTimeRef.current = 0;
+        // 获取歌曲的平台信息
+        const platform = playState.currentSong.platform || playState.currentSource || 'netease';
+
+        // 重新解析歌曲获取新的播放链接
+        try {
+          const response = await fetch('/api/music', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              action: 'parse',
+              platform: platform,
+              ids: playState.currentSong.id,
+              quality: playState.quality || '320k',
+            }),
+          });
+
+          const data = await response.json();
+
+          if (data.code === 0 && data.data?.data && data.data.data.length > 0) {
+            const songData = data.data.data[0];
+
+            if (songData.url && songData.success) {
+              // 对于酷我音乐，使用代理
+              let playUrl = songData.url;
+              if (platform === 'kuwo') {
+                playUrl = `/api/music/proxy?url=${encodeURIComponent(songData.url)}`;
               }
-            };
 
-            // 监听加载完成事件
-            audioRef.current.addEventListener('loadedmetadata', restoreTime, { once: true });
-            audioRef.current.addEventListener('canplay', restoreTime, { once: true });
+              setCurrentSongUrl(songData.url);
 
-            // 调用 load() 触发音频加载
-            audioRef.current.load();
+              // 延迟设置音频源，等待 audio 元素加载
+              setTimeout(() => {
+                if (audioRef.current) {
+                  audioRef.current.src = playUrl;
+
+                  // 监听多个事件以确保进度恢复
+                  const restoreTime = () => {
+                    if (audioRef.current && restoredTimeRef.current > 0) {
+                      audioRef.current.currentTime = restoredTimeRef.current;
+                      restoredTimeRef.current = 0;
+                    }
+                  };
+
+                  // 监听加载完成事件
+                  audioRef.current.addEventListener('loadedmetadata', restoreTime, { once: true });
+                  audioRef.current.addEventListener('canplay', restoreTime, { once: true });
+
+                  // 调用 load() 触发音频加载
+                  audioRef.current.load();
+                }
+              }, 100);
+            }
           }
-        }, 100);
+        } catch (error) {
+          console.error('重新解析歌曲失败:', error);
+        }
       }
     } catch (error) {
       console.error('恢复播放状态失败:', error);
@@ -179,6 +229,7 @@ export default function MusicPage() {
             artist: record.artist,
             album: record.album,
             pic: record.pic,
+            platform: record.platform, // 添加平台信息
           });
         });
 
@@ -210,9 +261,11 @@ export default function MusicPage() {
         `/api/music?action=toplists&platform=${source}`
       );
       const data = await response.json();
-      setPlaylists(data || []);
+      // 确保返回的是数组
+      setPlaylists(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('加载排行榜失败:', error);
+      setPlaylists([]);
     } finally {
       setLoading(false);
     }
@@ -226,11 +279,13 @@ export default function MusicPage() {
         `/api/music?action=toplist&platform=${currentSource}&id=${playlistId}`
       );
       const data = await response.json();
-      setSongs(data || []);
+      // 确保返回的是数组
+      setSongs(Array.isArray(data) ? data : []);
       setCurrentPlaylistTitle(playlistName);
       setCurrentView('songs');
     } catch (error) {
       console.error('加载歌单失败:', error);
+      setSongs([]);
     } finally {
       setLoading(false);
     }
@@ -246,11 +301,13 @@ export default function MusicPage() {
         `/api/music?action=search&platform=${currentSource}&keyword=${encodeURIComponent(searchKeyword)}&page=1&pageSize=20`
       );
       const data = await response.json();
-      setSongs(data || []);
+      // 确保返回的是数组
+      setSongs(Array.isArray(data) ? data : []);
       setCurrentPlaylistTitle(`搜索: ${searchKeyword}`);
       setCurrentView('songs');
     } catch (error) {
       console.error('搜索失败:', error);
+      setSongs([]);
     } finally {
       setLoading(false);
     }
@@ -259,6 +316,9 @@ export default function MusicPage() {
   // 播放歌曲
   const playSong = async (song: Song, index: number) => {
     try {
+      // 使用歌曲自己的平台信息，如果没有则使用当前选择的平台
+      const platform = song.platform || currentSource;
+
       // 先设置当前歌曲和显示播放器
       setCurrentSong(song);
       setCurrentSongIndex(index);
@@ -267,7 +327,7 @@ export default function MusicPage() {
 
       // 添加到播放记录和播放列表
       const record: PlayRecord = {
-        platform: currentSource,
+        platform: platform,
         id: song.id,
         playTime: 0, // 初始播放时间
         duration: 0, // 将在音频加载后更新
@@ -294,11 +354,11 @@ export default function MusicPage() {
       });
 
       setPlaylist(prev => {
-        const existingIndex = prev.findIndex(s => s.id === song.id);
+        const existingIndex = prev.findIndex(s => s.id === song.id && s.platform === platform);
         if (existingIndex >= 0) {
           return prev;
         } else {
-          return [...prev, song];
+          return [...prev, { ...song, platform }];
         }
       });
 
@@ -308,39 +368,49 @@ export default function MusicPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'parse',
-          platform: currentSource,
+          platform: platform, // 使用歌曲的平台
           ids: song.id,
           quality: quality,
         }),
       });
 
       const data = await response.json();
-      console.log('解析返回数据:', data);
 
       // TuneHub 返回格式: { code: 0, data: { data: [...] } }
       if (data.code === 0 && data.data?.data && data.data.data.length > 0) {
         const songData = data.data.data[0];
 
         if (songData.url && songData.success) {
+          // 处理封面图片（在 HTTPS 环境下代理 HTTP 图片）
+          const coverUrl = processImageUrl(songData.cover, platform);
+
           // 更新歌曲信息，包括封面
-          if (songData.cover) {
+          if (coverUrl) {
             setCurrentSong({
               ...song,
-              pic: songData.cover,
+              pic: coverUrl,
+              platform,
             });
           }
 
-          // 解析歌词 - 字段名是 lyrics
+          // 解析歌词
           if (songData.lyrics) {
             const parsedLyrics = parseLyric(songData.lyrics);
             setLyrics(parsedLyrics);
           }
 
-          // 保存歌曲URL用于下载
+          // 保存原始 URL 用于下载
           setCurrentSongUrl(songData.url);
 
+          // 对于酷我音乐，使用代理
+          let playUrl = songData.url;
+          if (platform === 'kuwo') {
+            playUrl = `/api/music/proxy?url=${encodeURIComponent(songData.url)}`;
+          }
+
           if (audioRef.current) {
-            audioRef.current.src = songData.url;
+            audioRef.current.src = playUrl;
+            audioRef.current.load();
             audioRef.current.play().catch(err => {
               console.error('播放失败:', err);
             });
