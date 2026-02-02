@@ -865,6 +865,25 @@ export abstract class BaseRedisStorage implements IStorage {
     if (skipConfigKeys.length > 0) {
       await this.withRetry(() => this.adapter.del(skipConfigKeys));
     }
+
+    // 删除音乐播放记录
+    await this.withRetry(() => this.adapter.del(this.musicPlayRecordHashKey(userName)));
+
+    // 删除用户的所有歌单
+    const playlistIds = await this.withRetry(() =>
+      this.adapter.zRange(this.musicPlaylistsKey(userName), 0, -1)
+    );
+    if (playlistIds && playlistIds.length > 0) {
+      for (const playlistId of playlistIds) {
+        const id = ensureString(playlistId);
+        // 删除歌单信息
+        await this.withRetry(() => this.adapter.del(this.musicPlaylistKey(id)));
+        // 删除歌单的歌曲列表
+        await this.withRetry(() => this.adapter.del(this.musicPlaylistSongsKey(id)));
+      }
+    }
+    // 删除用户的歌单列表
+    await this.withRetry(() => this.adapter.del(this.musicPlaylistsKey(userName)));
   }
 
   // ---------- 新版用户存储（使用Hash和Sorted Set） ----------
