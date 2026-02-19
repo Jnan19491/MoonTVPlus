@@ -3028,15 +3028,15 @@ export const UserMenu: React.FC = () => {
                       <button
                         onClick={() => {
                           const ua = navigator.userAgent.toLowerCase();
-                          let targetUrl = 'https://github.com/mtvpls/Selene-Build/actions/workflows/build.yml';
+                          let targetUrl = 'https://github.com/mtvpls/Selene-Build/releases/tag/v0.6.0';
 
                           // 根据 UA 判断平台
                           if (ua.includes('windows')) {
-                            targetUrl = 'https://github.com/mtvpls/Selene-Build/actions/workflows/build.yml';
+                            targetUrl = 'https://github.com/mtvpls/Selene-Build/releases/tag/v0.6.0';
                           } else if (ua.includes('mac')) {
-                            targetUrl = 'https://github.com/mtvpls/Selene-Build/actions/workflows/build.yml';
+                            targetUrl = 'https://github.com/mtvpls/Selene-Build/releases/tag/v0.6.0';
                           } else if (ua.includes('linux')) {
-                            targetUrl = 'https://github.com/mtvpls/Selene-Build/actions/workflows/build.yml';
+                            targetUrl = 'https://github.com/mtvpls/Selene-Build/releases/tag/v0.6.0';
                           }
 
                           window.open(targetUrl, '_blank');
