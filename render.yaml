@@ -1,9 +1,10 @@
 services:
   - type: web
     name: moontvplus
-    runtime: docker
+    runtime: image
     plan: free
-    dockerfilePath: ./Dockerfile
+    image:
+        url: ghcr.io/mtvpls/moontvplus:latest
     envVars:
       - key: USERNAME
         generateValue: true
