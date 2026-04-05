@@ -92,15 +92,33 @@ export class WatchRoomServer {
           }
 
           const userId = socket.id;
+          let isOwner = false;
+
+          if (data.ownerToken && data.ownerToken === room.ownerToken) {
+            isOwner = true;
+            room.ownerId = userId;
+            room.lastOwnerHeartbeat = Date.now();
+            this.rooms.set(data.roomId, room);
+            console.log(`[WatchRoom] Owner ${data.userName} reconnected to room ${data.roomId}`);
+          }
+
           const member: Member = {
             id: userId,
             name: data.userName,
-            isOwner: false,
+            isOwner,
             lastHeartbeat: Date.now(),
           };
 
           const roomMembers = this.members.get(data.roomId);
           if (roomMembers) {
+            if (isOwner) {
+              Array.from(roomMembers.entries()).forEach(([memberId, existingMember]) => {
+                if (existingMember.isOwner && memberId !== userId) {
+                  roomMembers.delete(memberId);
+                }
+              });
+            }
+
             roomMembers.set(userId, member);
             room.memberCount = roomMembers.size;
             this.rooms.set(data.roomId, room);
@@ -110,7 +128,7 @@ export class WatchRoomServer {
             roomId: data.roomId,
             userId,
             userName: data.userName,
-            isOwner: false,
+            isOwner,
           });
 
           socket.join(data.roomId);
@@ -118,7 +136,7 @@ export class WatchRoomServer {
           // 通知房间内其他成员
           socket.to(data.roomId).emit('room:member-joined', member);
 
-          console.log(`[WatchRoom] User ${data.userName} joined room ${data.roomId}`);
+          console.log(`[WatchRoom] User ${data.userName} joined room ${data.roomId}${isOwner ? ' (as owner)' : ''}`);
 
           const members = Array.from(roomMembers?.values() || []);
           callback({ success: true, room, members });

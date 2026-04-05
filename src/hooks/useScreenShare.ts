@@ -12,7 +12,51 @@ const iceServers = [
   { urls: 'stun:stun1.l.google.com:19302' },
 ];
 
-export function useScreenShare() {
+export type ScreenShareQualityPreset = 'smooth' | 'hd' | 'ultra';
+
+const SCREEN_SHARE_CONSTRAINTS: Record<
+  ScreenShareQualityPreset,
+  {
+    label: string;
+    frameRate: number;
+    width: number;
+    height: number;
+  }
+> = {
+  smooth: {
+    label: '流畅 720p / 15fps',
+    frameRate: 15,
+    width: 1280,
+    height: 720,
+  },
+  hd: {
+    label: '高清 1080p / 30fps',
+    frameRate: 30,
+    width: 1920,
+    height: 1080,
+  },
+  ultra: {
+    label: '超清 1440p / 30fps',
+    frameRate: 30,
+    width: 2560,
+    height: 1440,
+  },
+};
+
+export const screenShareQualityOptions = Object.entries(SCREEN_SHARE_CONSTRAINTS).map(
+  ([value, preset]) => ({
+    value: value as ScreenShareQualityPreset,
+    label: preset.label,
+  })
+);
+
+export interface ScreenShareCaptureSettings {
+  width: number | null;
+  height: number | null;
+  frameRate: number | null;
+}
+
+export function useScreenShare(qualityPreset: ScreenShareQualityPreset = 'smooth') {
   const watchRoom = useWatchRoomContextSafe();
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
   const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
@@ -23,9 +67,11 @@ export function useScreenShare() {
 
   const [error, setError] = useState<string | null>(null);
   const [isStarting, setIsStarting] = useState(false);
+  const [captureSettings, setCaptureSettings] = useState<ScreenShareCaptureSettings | null>(null);
 
   const currentRoom = watchRoom?.currentRoom || null;
   const socket = watchRoom?.socket || null;
+  const isConnected = watchRoom?.isConnected || false;
   const isOwner = watchRoom?.isOwner || false;
   const members = watchRoom?.members || [];
   const currentState = currentRoom?.currentState;
@@ -67,6 +113,7 @@ export function useScreenShare() {
       localVideoRef.current.srcObject = null;
     }
 
+    setCaptureSettings(null);
     clearRemoteVideo();
     stoppingRef.current = false;
   }, [clearRemoteVideo, closePeerConnection]);
@@ -136,11 +183,12 @@ export function useScreenShare() {
     setError(null);
 
     try {
+      const constraints = SCREEN_SHARE_CONSTRAINTS[qualityPreset];
       const stream = await navigator.mediaDevices.getDisplayMedia({
         video: {
-          frameRate: 15,
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
+          frameRate: constraints.frameRate,
+          width: { ideal: constraints.width },
+          height: { ideal: constraints.height },
         },
         audio: true,
       });
@@ -152,6 +200,12 @@ export function useScreenShare() {
 
       const videoTrack = stream.getVideoTracks()[0];
       if (videoTrack) {
+        const settings = videoTrack.getSettings();
+        setCaptureSettings({
+          width: typeof settings.width === 'number' ? settings.width : null,
+          height: typeof settings.height === 'number' ? settings.height : null,
+          frameRate: typeof settings.frameRate === 'number' ? settings.frameRate : null,
+        });
         videoTrack.onended = () => {
           stopSharing(true);
         };
@@ -176,7 +230,7 @@ export function useScreenShare() {
     } finally {
       setIsStarting(false);
     }
-  }, [currentRoom, isOwner, members, sendOfferToMember, stopSharing, watchRoom]);
+  }, [currentRoom, isOwner, members, qualityPreset, sendOfferToMember, stopSharing, watchRoom]);
 
   useEffect(() => {
     if (!socket || !currentRoom) return;
@@ -231,6 +285,14 @@ export function useScreenShare() {
       }
     };
 
+    const handleSocketDisconnect = () => {
+      if (!isOwner) {
+        peerConnectionsRef.current.forEach((_pc, userId) => closePeerConnection(userId));
+        peerConnectionsRef.current.clear();
+        clearRemoteVideo();
+      }
+    };
+
     const handleViewerReady = (data: { userId: string }) => {
       if (!isOwner || !displayStreamRef.current) return;
       sendOfferToMember(data.userId);
@@ -241,6 +303,7 @@ export function useScreenShare() {
     socket.on('screen:ice', handleIce);
     socket.on('screen:stop', handleScreenStop);
     socket.on('screen:viewer-ready', handleViewerReady);
+    socket.on('disconnect', handleSocketDisconnect);
 
     return () => {
       socket.off('screen:offer', handleOffer);
@@ -248,6 +311,7 @@ export function useScreenShare() {
       socket.off('screen:ice', handleIce);
       socket.off('screen:stop', handleScreenStop);
       socket.off('screen:viewer-ready', handleViewerReady);
+      socket.off('disconnect', handleSocketDisconnect);
     };
   }, [clearRemoteVideo, closePeerConnection, createPeerConnection, currentRoom, isOwner, sendOfferToMember, socket]);
 
@@ -277,11 +341,11 @@ export function useScreenShare() {
   }, [cleanupSharingResources]);
 
   useEffect(() => {
-    if (!socket || !currentRoom || isOwner) return;
+    if (!socket || !currentRoom || isOwner || !isConnected) return;
     if (currentState?.type !== 'screen' || currentState.status !== 'sharing') return;
 
     socket.emit('screen:viewer-ready');
-  }, [currentRoom, currentState, isOwner, socket]);
+  }, [currentRoom, currentState, isConnected, isOwner, socket]);
 
   return {
     currentRoom,
@@ -289,6 +353,7 @@ export function useScreenShare() {
     isSharing,
     isStarting,
     error,
+    captureSettings,
     localVideoRef,
     remoteVideoRef,
     startSharing,

@@ -134,6 +134,14 @@ class WatchRoomServer {
 
           const roomMembers = this.members.get(data.roomId);
           if (roomMembers) {
+            if (isOwner) {
+              Array.from(roomMembers.entries()).forEach(([memberId, existingMember]) => {
+                if (existingMember.isOwner && memberId !== userId) {
+                  roomMembers.delete(memberId);
+                }
+              });
+            }
+
             roomMembers.set(userId, member);
             room.memberCount = roomMembers.size;
             this.rooms.set(data.roomId, room);

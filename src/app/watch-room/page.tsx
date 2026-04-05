@@ -583,7 +583,7 @@ export default function WatchRoomPage() {
                         }`}
                       >
                         <div className="font-medium text-gray-900 dark:text-gray-100">进度同步</div>
-                        <div className="mt-1 text-sm text-gray-600 dark:text-gray-400">统一播放进度</div>
+                        <div className="mt-1 text-sm text-gray-600 dark:text-gray-400">统一播放进度（适合双方网络稳定的情况）</div>
                       </button>
                       <button
                         type="button"
@@ -595,7 +595,7 @@ export default function WatchRoomPage() {
                         }`}
                       >
                         <div className="font-medium text-gray-900 dark:text-gray-100">屏幕共享</div>
-                        <div className="mt-1 text-sm text-gray-600 dark:text-gray-400">房员直接观看房主共享的浏览器画面</div>
+                        <div className="mt-1 text-sm text-gray-600 dark:text-gray-400">房员直接观看房主共享的浏览器画面（适合完全实时同步的情况）</div>
                       </button>
                     </div>
                   </div>
