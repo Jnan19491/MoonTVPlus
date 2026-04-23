@@ -1,13 +1,13 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import type { Metadata, Viewport } from 'next';
-import { cookies } from 'next/headers';
 import { Inter } from 'next/font/google';
+import { cookies } from 'next/headers';
 
 import './globals.css';
 
-import { getConfig } from '@/lib/config';
 import { parseAuthInfo } from '@/lib/auth';
+import { getConfig } from '@/lib/config';
 import { getUserFeatureAccess } from '@/lib/permissions';
 import { listEnabledSourceScripts } from '@/lib/source-script';
 
@@ -15,11 +15,11 @@ import { StartupCacheCleanup } from '../components/DanmakuCacheCleanup';
 import { DownloadBubble } from '../components/DownloadBubble';
 import { DownloadPanel } from '../components/DownloadPanel';
 import { GlobalErrorIndicator } from '../components/GlobalErrorIndicator';
+import RouteScrollReset from '../components/RouteScrollReset';
 import { SiteProvider } from '../components/SiteProvider';
 import { ThemeProvider } from '../components/ThemeProvider';
 import { TokenRefreshManager } from '../components/TokenRefreshManager';
 import TopProgressBar from '../components/TopProgressBar';
-import RouteScrollReset from '../components/RouteScrollReset';
 import ChatFloatingWindow from '../components/watch-room/ChatFloatingWindow';
 import { WatchRoomProvider } from '../components/WatchRoomProvider';
 import { DownloadProvider } from '../contexts/DownloadContext';
@@ -76,6 +76,7 @@ export default async function RootLayout({
   let xiaoyaEnabled = false;
   let loginBackgroundImage = '';
   let registerBackgroundImage = '';
+  let homeBackgroundImage = '';
   let progressThumbType = 'default';
   let progressThumbPresetId = '';
   let progressThumbCustomUrl = '';
@@ -139,6 +140,7 @@ export default async function RootLayout({
     tmdbApiKey = config.SiteConfig.TMDBApiKey || '';
     loginBackgroundImage = config.ThemeConfig?.loginBackgroundImage || '';
     registerBackgroundImage = config.ThemeConfig?.registerBackgroundImage || '';
+    homeBackgroundImage = config.ThemeConfig?.homeBackgroundImage || '';
     progressThumbType = config.ThemeConfig?.progressThumbType || 'default';
     progressThumbPresetId = config.ThemeConfig?.progressThumbPresetId || '';
     progressThumbCustomUrl = config.ThemeConfig?.progressThumbCustomUrl || '';
@@ -226,6 +228,7 @@ export default async function RootLayout({
       (xiaoyaEnabled && userFeatureAccess.xiaoya),
     LOGIN_BACKGROUND_IMAGE: loginBackgroundImage,
     REGISTER_BACKGROUND_IMAGE: registerBackgroundImage,
+    HOME_BACKGROUND_IMAGE: homeBackgroundImage,
     PROGRESS_THUMB_TYPE: progressThumbType,
     PROGRESS_THUMB_PRESET_ID: progressThumbPresetId,
     PROGRESS_THUMB_CUSTOM_URL: progressThumbCustomUrl,

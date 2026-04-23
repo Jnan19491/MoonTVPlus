@@ -126,6 +126,7 @@ export interface AdminConfig {
     cacheVersion: number; // CSS版本号（用于缓存控制）
     loginBackgroundImage?: string; // 登录界面背景图
     registerBackgroundImage?: string; // 注册界面背景图
+    homeBackgroundImage?: string; // 首页背景图
     // 进度条图标配置
     progressThumbType?: 'default' | 'preset' | 'custom'; // 图标类型
     progressThumbPresetId?: string; // 预制图标ID

@@ -7329,6 +7329,7 @@ const ThemeConfigComponent = ({
   });
   const [loginBackgroundImages, setLoginBackgroundImages] = useState<string[]>(['']);
   const [registerBackgroundImages, setRegisterBackgroundImages] = useState<string[]>(['']);
+  const [homeBackgroundImages, setHomeBackgroundImages] = useState<string[]>(['']);
 
   useEffect(() => {
     if (config?.ThemeConfig) {
@@ -7362,6 +7363,16 @@ const ThemeConfigComponent = ({
         setRegisterBackgroundImages(urls.length > 0 ? urls : ['']);
       } else {
         setRegisterBackgroundImages(['']);
+      }
+
+      if (config.ThemeConfig.homeBackgroundImage) {
+        const urls = config.ThemeConfig.homeBackgroundImage
+          .split('\n')
+          .map((url) => url.trim())
+          .filter((url) => url !== '');
+        setHomeBackgroundImages(urls.length > 0 ? urls : ['']);
+      } else {
+        setHomeBackgroundImages(['']);
       }
     }
   }, [config]);
@@ -7403,6 +7414,22 @@ const ThemeConfigComponent = ({
           }
         }
 
+        const validHomeUrls = homeBackgroundImages
+          .map((url) => url.trim())
+          .filter((url) => url !== '');
+
+        for (const url of validHomeUrls) {
+          if (!url.startsWith('http://') && !url.startsWith('https://')) {
+            showAlert({
+              type: 'error',
+              title: '格式错误',
+              message: `首页背景图URL格式错误：${url}\n每个URL必须以http://或https://开头`,
+              showConfirm: true,
+            });
+            return;
+          }
+        }
+
         const response = await fetch('/api/admin/theme', {
           method: 'POST',
           headers: {
@@ -7412,6 +7439,7 @@ const ThemeConfigComponent = ({
             ...themeSettings,
             loginBackgroundImage: validLoginUrls.join('\n'),
             registerBackgroundImage: validRegisterUrls.join('\n'),
+            homeBackgroundImage: validHomeUrls.join('\n'),
           }),
         });
 
@@ -7766,9 +7794,59 @@ const ThemeConfigComponent = ({
               </button>
             </div>
           </div>
+
+          {/* 首页背景图 */}
+          <div>
+            <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2'>
+              首页背景图
+            </label>
+            <div className='space-y-2'>
+              {homeBackgroundImages.map((url, index) => (
+                <div key={index} className='flex gap-2'>
+                  <input
+                    type='text'
+                    value={url}
+                    onChange={(e) => {
+                      const newImages = [...homeBackgroundImages];
+                      newImages[index] = e.target.value;
+                      setHomeBackgroundImages(newImages);
+                    }}
+                    placeholder='请输入首页背景图URL (http:// 或 https://)'
+                    className='flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono text-sm'
+                  />
+                  {homeBackgroundImages.length > 1 && (
+                    <button
+                      type='button'
+                      onClick={() => {
+                        setHomeBackgroundImages(
+                          homeBackgroundImages.filter((_, i) => i !== index)
+                        );
+                      }}
+                      className='px-3 py-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors'
+                      title='删除'
+                    >
+                      <svg className='w-5 h-5' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
+                        <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M6 18L18 6M6 6l12 12' />
+                      </svg>
+                    </button>
+                  )}
+                </div>
+              ))}
+              <button
+                type='button'
+                onClick={() => setHomeBackgroundImages([...homeBackgroundImages, ''])}
+                className='flex items-center gap-2 px-4 py-2 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors'
+              >
+                <svg className='w-5 h-5' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
+                  <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M12 4v16m8-8H4' />
+                </svg>
+                <span>添加URL</span>
+              </button>
+            </div>
+          </div>
         </div>
         <p className='mt-4 text-sm text-gray-600 dark:text-gray-400'>
-          配置登录和注册页面的背景图链接，留空则使用默认样式。支持配置多张图片，将随机展示其中一张
+          配置登录、注册和首页的背景图链接，留空则使用默认样式。支持配置多张图片，将随机展示其中一张
         </p>
       </div>
 
